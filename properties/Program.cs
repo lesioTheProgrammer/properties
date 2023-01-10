@@ -60,9 +60,6 @@ listSmol2.Add(smol4);
 
 
 var testList = new List<Test1>();
-testList.Add(smolTest1);
-testList.Add(smolTest2);
-testList.Add(smolTest3);
 
 
 var propertiesBiggieData = new PropertiesBiggie()
@@ -83,13 +80,10 @@ var properties = propertiesBiggieData.GetType().GetProperties();
 foreach (var p in properties)
 {
     workBook.Worksheets.Add(p.Name[..^6]); // Adds sheet with given name
-    var ws = workBook.Worksheets.Worksheet(p.Name[..^6]); // Get the one just given
 
-    var type = p.PropertyType.GetGenericArguments().Single();
-    var classElementToGetColumns = Activator.CreateInstance(type); // if empty collection im not screwed.
-    var property = p!.GetValue(propertiesBiggieData, null);
-
-    WorkSheedDataFill(ws, property, classElementToGetColumns);
+    var ws = workBook.Worksheets.Worksheet(p.Name[..^6]);
+    var data = (IEnumerable<IReportData>)p!.GetValue(propertiesBiggieData, null);
+    PoulateWorkSheet(ws, data!);
 
 }
 
@@ -98,63 +92,29 @@ foreach (var p in properties)
 workBook.Properties.Title = "xx";
 workBook.SaveAs(@$"C:\Users\lbund\Documents\{workBook.Properties.Title}.xlsx");
 
-void WorkSheedDataFill(IXLWorksheet ws, object? objectData, object? obcjetColumns)
+ void PoulateWorkSheet(IXLWorksheet ws, IEnumerable<IReportData> data)
 {
-    var collection = (IList)objectData; // dane kolekcji
-
-    // class with: columnName, 
-
-    // kolumny only + puste dane
-    var columnsProperties = obcjetColumns.GetType().GetProperties();
-    var columnNames = columnsProperties.Select(p => p.Name).ToList();
-
-
-    var oclumnData = new Dictionary<string, int>(); // name of the column and column number
-
+    var listType = data.GetType();
+    var itemType = listType.GetGenericArguments()[0];
+    var itemProperties = itemType.GetProperties();
+    var columnNames = itemProperties.Select(p => p.Name);
     var column = 1;
+    var row = 1;
 
+    //populate first raw with column names
     foreach (var columnName in columnNames)
     {
-        Console.WriteLine($"(1, {column})" + " " + columnName);
-        ws.Cell(1, column).Value = columnName;
-        oclumnData.Add(columnName, column);
-        column++;
+        ws.Cell(row, column++).Value = columnName;
     }
 
-    // get type of class we got
-    if (collection.Count > 0) 
+    foreach (var item in data)
     {
-        var rowPerItem = new Dictionary<string, int>();
-
-        foreach (var item in collection)
+        row++;
+        column = 1;
+        foreach (var property in itemProperties)
         {
-            var properties = item.GetType().GetProperties();
-
-            // save rows for each property too
-            var row1 = 0;
-            foreach (var a in properties)
-            {
-                var name = a.Name;
-                if (!rowPerItem.ContainsKey(name))
-                {
-                    row1 = 2;
-                    rowPerItem.Add(name, row1);
-                }
-                else
-                {
-                    // get row by name and +1
-                    row1 = rowPerItem[name];
-                    row1++;
-                }
-
-
-                //rowPerItem[name] = row1;
-                var column2 = oclumnData[name];
-
-                var rowValue = a.GetValue(item) != null ? a.GetValue(item)?.ToString() : string.Empty;
-                Console.WriteLine(rowValue + " (" + row1 + " , " + column2 + ")");
-                ws.Cell(row1, column2).Value = rowValue;
-            }
+            var propertyValue = property.GetValue(item);
+            ws.Cell(row, column++).Value = propertyValue == null ? string.Empty : propertyValue.ToString();
         }
     }
 
